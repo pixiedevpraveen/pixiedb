@@ -1,0 +1,17 @@
+.cache
+.DS_Store
+.idea
+*.log
+*.tgz
+coverage
+dist
+lib-cov
+logs
+node_modules
+temp
+.data
+package-lock.json
+pnpm-lock.yaml
+size.sh
+.vscode/launch.json
+.vscode/settings.json
