@@ -11,7 +11,7 @@ A tiny javascript in memory database with indexing and sql like filters.
 > [!WARNING]
 > Please keep in mind that PixieDb is still in under active development.
 
-## Demo
+## Usage
 ```ts
 import { PixieDb } from "pixiedb";
 

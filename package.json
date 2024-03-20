@@ -1,7 +1,7 @@
 {
   "name": "pixiedb",
   "type": "module",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "pixiedev",
   "description": "A tiny javascript in memory database with indexing and sql like filters.",
   "author": "Praveen Yadav",
