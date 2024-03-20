@@ -8,7 +8,7 @@ import type { Index, SelectQueryBuilder, WhereQueryBuilder } from "./types";
  * A tiny javascript in memory database with indexing and filters.
  *
  * @author Praveen yadav
- * @see https://github.com/pixiedevpraveen/pixiedb/tree/master/docs/index.md
+ * @see https://github.com/pixiedevpraveen/pixiedb/tree/master/README.md
  * ---
  * @example
  * const pd = new PixieDb('id', ["price", "category"], products) // data is optional can be load after using the load method
