@@ -246,9 +246,6 @@ export class ResultSet<T extends Record<any, any>, Fields extends readonly (keyo
             ikeys.forEach(i => {
 
                 st = ix[i].get(d[i])
-                if (st) st.delete(d.id)
-
-                st = ix[i].get(d[i])
                 if (st) {
                     st.delete(d[this.key])
                     if (!st.size)
@@ -389,14 +386,13 @@ export class ResultSet<T extends Record<any, any>, Fields extends readonly (keyo
                 const op = this.sortOptions[i]
                 const priority = len - i
 
-                // [key: keyof T, order: "asc" | "desc"]
                 const [key, order] = op
 
-                const value1 = isNullOrUndefined(a[key]) ? 0 : a[key];
-                const value2 = isNullOrUndefined(b[key]) ? 0 : b[key];
+                const v1 = isNullOrUndefined(a[key]) ? 0 : a[key];
+                const v2 = isNullOrUndefined(b[key]) ? 0 : b[key];
 
-                let cmp = value1 === value2 ? 0 : (
-                    value1 < value2 ? -1 : 1
+                let cmp = v1 === v2 ? 0 : (
+                    v1 < v2 ? -1 : 1
                 )
                 cmp *= priority;
                 if (order === "desc") cmp *= -1
