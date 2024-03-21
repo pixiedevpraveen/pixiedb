@@ -1,3 +1,5 @@
+import type { SpeedIndex } from "speed-index";
+
 export type FilterOption = "eq" | "neq" | "gt" | "gte" | "lt" | "lte"
 
 export type FQ<T, K extends keyof T> =
@@ -10,7 +12,7 @@ export type OrderBy<T> = [key: keyof T, order: "asc" | "desc"]
 export type SortOptions<T> = ((keyof T) | OrderBy<T>)[]
 
 
-export type Index<T, Key extends keyof T> = { [K in keyof T]: Map<T[K], Set<T[Key]>> }
+export type Index<T, Key extends keyof T> = { [K in keyof T]: SpeedIndex<T[K], Set<T[Key]>> }
 
 export type DBEvent<T> =
     /**
@@ -103,14 +105,15 @@ export type BaseQueryBuilder<T extends Record<any, any>, SecondaryBuilder> = {
      * @example
      * pd.select().gt("price", 150).data()
     */
-    gt: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
-
-    /**
-     * return rows where field value is greater than and eqaul to given value
-     * @example
-     * pd.select().gte("price", 100).data()
-    */
-    gte: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
+   gt: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
+   
+   /**
+    * return rows where field value is greater than and eqaul to given value.
+    * rows are order by the given field in ascending order
+    * @example
+    * pd.select().gte("price", 100).data()
+   */
+  gte: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
 
     /**
      * return rows where field value is lower than to given value
@@ -118,9 +121,10 @@ export type BaseQueryBuilder<T extends Record<any, any>, SecondaryBuilder> = {
      * pd.select().lt("price", 120).data()
     */
     lt: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
-
+    
     /**
-     * return rows where field value is lower than and eqaul to given value
+     * return rows where field value is lower than and eqaul to given value.
+     * rows are order by the given field in ascending order
      * @example
      * pd.select().lte("price", 120).data()
     */

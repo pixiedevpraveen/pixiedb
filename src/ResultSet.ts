@@ -88,9 +88,25 @@ export class ResultSet<T extends Record<any, any>, Fields extends readonly (keyo
      * @param name index name
      * @param value index value
     */
-    private getByIndex<K extends keyof T>(name: K, value: T[K]): T[] {
+    private getByIndex<K extends keyof T>(name: K, value: T[K], op: "eq" | "btw" | "gte" | "lte" = "eq", val2?: T[K]): T[] {
         const res: T[] = []
-        const ks = this.idx[name]?.get(value)
+        let ks: Set<T[Key]> | T[Key][] | undefined
+        let t: Set<T[Key]>[] | undefined
+        switch (op) {
+            case "eq":
+                ks = this.idx[name].get(value)
+                break;
+            case "btw":
+                if (val2 === undefined) break;
+                t = this.idx[name].findRange(value, val2)
+                break;
+            case "gte":
+            case "lte":
+                t = this.idx[name][op](value)
+                break;
+
+        }
+        if (t) ks = [...t.flatMap(set => [...set])]
 
         if (ks)
             ks.forEach(k => {
@@ -151,6 +167,14 @@ export class ResultSet<T extends Record<any, any>, Fields extends readonly (keyo
                 started = true
             } else if (hasOwn(this.idx, fq[1])) {
                 const vs = this.getByIndex(fq[1], fq[2])
+                this.filteredrows.push(...vs)
+                started = true
+            }
+        }
+
+        else if (fq[0] === "gte" || fq[0] === "lte" || fq[0] === "btw") {
+            if (hasOwn(this.idx, fq[1])) {
+                const vs = this.getByIndex(fq[1], fq[2], fq[0], fq[3])
                 this.filteredrows.push(...vs)
                 started = true
             }

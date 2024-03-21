@@ -3,6 +3,7 @@ import { ResultSet } from "./ResultSet";
 import { PDBError } from "./error";
 import { deepClone, freeze, hasOwn, isArray, toArray } from "./utils";
 import type { Index, SelectQueryBuilder, WhereQueryBuilder } from "./types";
+import { SpeedIndex } from "speed-index";
 
 /**-----------------------------------------------------
  * A tiny javascript in memory database with indexing and filters.
@@ -14,7 +15,6 @@ import type { Index, SelectQueryBuilder, WhereQueryBuilder } from "./types";
  * const pd = new PixieDb('id', ["price", "category"], products) // data is optional can be load after using the load method
  * const byId = pd.select().eq("id", 2).single() // { id: 2, name: "Banana", price: 10, category: "Fruit" }
  * const allByName = pd.select().eq("name", "Apple").orderBy(["name", ["price", "desc"]]).data() // [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...]
- * console.log(byId, allByName);
  */
 export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends EvEmit<T> {
     /**
@@ -33,7 +33,7 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
     private indexes: Index<T, Key>
 
     /**
-     * @param key primary key or unique key for the database
+     * @param key primary key or unique key for the database (key should be primitive).
      * @param indexes list of index names
      * @param data data list/array to load (with clone)
     */
@@ -42,7 +42,7 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
         this.key = key
 
         let idx = Object.create(null) as Index<T, Key>
-        indexes.forEach(i => idx[i] instanceof Map || (idx[i] = new Map()))
+        indexes.forEach(i => idx[i] instanceof SpeedIndex || (idx[i] = new SpeedIndex()))
         this.indexes = freeze(idx)
         if (data) this.load(data)
     }
