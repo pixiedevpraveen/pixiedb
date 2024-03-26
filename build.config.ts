@@ -9,5 +9,8 @@ export default defineBuildConfig({
   failOnWarn: false,
   rollup: {
     emitCJS: true,
-  },
+    esbuild: {
+      minify: true
+    }
+  }
 })
