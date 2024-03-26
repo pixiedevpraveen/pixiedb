@@ -12,6 +12,9 @@ export class EvEmit<T> {
     */
     private cEv
 
+    /**
+     * @param cTime Change emit fire throttle time
+    */
     constructor(cTime: number) {
         this.cEv = throttle(() => {
             this.emit("C")
@@ -20,8 +23,17 @@ export class EvEmit<T> {
 
     /**
      * add event listner to the given event
-     * @param ev event name
+     * @param ev event name "L": "load", "C": "change", "I": "insert", "U": "insert", "D": "delete", "Q": "quit/close".
      * @param fn Listner/Handler 
+     * ```
+     * "L" alias of load. fires when data loaded
+     * "C" alias of change. fires on any changes happened like (insert/update/delete) after some time (debounced)
+     * "I" fires on row/record insert
+     * "U" fires on row/record update
+     * "D" fires on row/record delete
+     * "Q" alias of Quit. fires on database clone
+     * ```
+     * -----
      * @example
      * pd.on("I", (ev, doc) => { console.log(ev, doc) }) // "I", { id: 3, name: "Orange", price: 20, category: "Fruit" } // on insert event
      * pd.on("C", (evs)=>{}) // on change event with list of changes
@@ -38,7 +50,7 @@ export class EvEmit<T> {
 
     /**
      * remove event listner from the given event
-     * @param ev event name
+     * @param ev event name "L": "load", "C": "change", "I": "insert", "U": "insert", "D": "delete", "Q": "quit/close".
      * @param fn Listner/Handler 
      * @example
      * pd.off("Q", (ev)=>{})
@@ -53,7 +65,7 @@ export class EvEmit<T> {
 
     /**
      * emit events
-     * @param ev event name
+     * @param ev event name "L": "load", "C": "change", "I": "insert", "U": "insert", "D": "delete", "Q": "quit/close".
      * @param data data payload to emit
      * @example
      * pd.emit("I", { id: 3, name: "Orange", price: 20, category: "Fruit" }) // emit insert event
