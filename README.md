@@ -63,23 +63,17 @@ const deletedApples = pd.where().eq("name", "Apple").delete()
 
 ## Installation
 
-### using npm
 ```bash
+# using npm
 npm install pixiedb
-```
 
-### using pnpm
-```bash
+# using pnpm
 pnpm add pixiedb
-```
 
-### using yarn
-```bash
+# using yarn
 yarn add pixiedb
-```
 
-### using bun
-```bash
+# using bun
 bun add pixiedb
 ```
 
@@ -133,12 +127,34 @@ pd.select().eq("category", "Fruit").between("price", [6, 10]).data()
 // [{ id: 2, name: "Banana", price: 10, category: "Fruit" }, { id: 3, name: "Grapes", price: 6, category: "Fruit" }, { id: 4, name: "Orange", price: 8, category: "Fruit" }, ...]
 ```
 
+#### where
+used to perform delete/update with complex filtering
+```ts
+// this will delete and return all the docs according to the filters
+pd.where().eq("category", "Fruit").gte("price", 6).delete()
+// [{ id: 2, name: "Banana", price: 10, category: "Fruit" }, { id: 3, name: "Grapes", price: 6, category: "Fruit" }, ...]
+
+pd.where().eq("category", "Fruit").between("price", [6, 10]).update({price: 11})
+// [{ id: 2, name: "Banana", price: 11, category: "Fruit" }, { id: 3, name: "Grapes", price: 11, category: "Fruit" }, { id: 4, name: "Orange", price: 11, category: "Fruit" }, ...]
+```
+
 #### data
 Get all docs/rows ordered respect to primary key/unique id.
 Pass false to get all without clone (don't modify). default: true
 ```ts
 pd.data(2)
 // [{ id: 1, name: "Apple", price: 5, category: "Fruit" }, ...]
+```
+
+#### count
+Get all docs/rows ordered respect to primary key/unique id.
+Pass false to get all without clone (don't modify). default: true
+```ts
+pd.select().count()
+// 6
+
+pd.select().eq("category", "Fruit").between("price", [6, 10]).count()
+// 4
 ```
 
 #### close
@@ -151,8 +167,14 @@ pd.close(true) // doesn't fire event
 ```
 
 #### toJson
-return JSON of all data without cloning, key and index names.
+return JSON of all data (without cloning), key and index names.
 ```ts
 pd.toJSON()
-// { key: "id", indexes: ["price", "category", {name: "id", unique: true}], data: [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...}]
+// { key: "id", indexes: ["price", "category", {name: "id", unique: true}], data: [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...]
+
+// this will call the above toJSON method
+JSON.stringify(pd)
 ```
+
+
+[view more](https://github.com/pixiedevpraveen/pixiedb/tree/master/README.md)
