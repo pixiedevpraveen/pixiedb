@@ -127,7 +127,7 @@ pd.select().eq("category", "Fruit").gte("price", 6).data()
 // [{ id: 2, name: "Banana", price: 10, category: "Fruit" }, { id: 3, name: "Grapes", price: 6, category: "Fruit" }, ...]
 
 pd.select(["id", "name", "price"]).eq("category", "Fruit").lte("price", 6).data()
-// [{ id: 1, name: "Apple", price: 5 }, ... ]
+// [{ id: 1, name: "Apple", price: 5 }, ...]
 
 pd.select().eq("category", "Fruit").between("price", [6, 10]).data()
 // [{ id: 2, name: "Banana", price: 10, category: "Fruit" }, { id: 3, name: "Grapes", price: 6, category: "Fruit" }, { id: 4, name: "Orange", price: 8, category: "Fruit" }, ...]
@@ -154,5 +154,5 @@ pd.close(true) // doesn't fire event
 return JSON of all data without cloning, key and index names.
 ```ts
 pd.toJSON()
-// { key: "id", indexes: ["price", "category", {name: "id", unique: true}], data: [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...] }
+// { key: "id", indexes: ["price", "category", {name: "id", unique: true}], data: [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...}]
 ```
