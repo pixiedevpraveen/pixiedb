@@ -3,7 +3,7 @@ import { ResultSet } from "./ResultSet";
 import { PDBError } from "./error";
 import { deepClone, freeze, hasOwn, isArray, toArray } from "./utils";
 import type { Index, SelectQueryBuilder, WhereQueryBuilder } from "./types";
-import { SpeedIndex } from "speed-index";
+import { BinaryIndex } from "./BinaryIndex";
 
 /**-----------------------------------------------------
  * A tiny javascript in memory database with indexing and filters.
@@ -25,25 +25,32 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
     /**
      * keyMap is a map of key and data
     */
-    private keyMap: Map<T[Key], T> = freeze(new Map<T[Key], T>())
+    #keyMap: Map<T[Key], T> = freeze(new Map<T[Key], T>())
 
     /**
      * indexes is a map of index name and map of index value and set of keys
     */
-    private indexes: Index<T, Key>
+    #idxs: Index<T, Key>
+    #uniqIdx
 
     /**
      * @param key primary key or unique key for the database (key should be primitive).
-     * @param indexes list of index names
+     * @param indexes list of index names or for unique indexes { name: "nameOfIndex", unique: true }
      * @param data data list/array to load (with clone)
     */
-    constructor(key: Key, indexes: readonly (keyof T)[] = [], data?: T[]) {
+    constructor(key: Key, indexes: Array<keyof T | { name: keyof T, unique: boolean }> = [], data?: T[]) {
         super(200)
         this.key = key
 
+        this.#uniqIdx = new Set<keyof T>([this.key])
+        indexes.push(key)
+
         let idx = Object.create(null) as Index<T, Key>
-        indexes.forEach(i => idx[i] instanceof SpeedIndex || (idx[i] = new SpeedIndex()))
-        this.indexes = freeze(idx)
+        indexes.forEach(i => {
+            if (typeof i === 'object' && i.unique) this.#uniqIdx.add(i.name)
+            idx[typeof i === 'object' ? i.name : i] = new BinaryIndex()
+        })
+        this.#idxs = freeze(idx)
         if (data) this.load(data)
     }
 
@@ -54,7 +61,7 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * pd.select().eq("category", "Fruit").orderBy("name", ["price", "desc"]).data() // [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, { id: 2, name: "Banana", price: 10, category: "Fruit" }, ...] 
     */
     select<Fields extends readonly (keyof T)[]>(fields?: Fields) {
-        return new ResultSet<T, Fields, Key>(this, this.key, this.keyMap, this.indexes, fields) as unknown as SelectQueryBuilder<T, Fields>
+        return this.#resutSet(isArray(fields) ? fields : []) as unknown as SelectQueryBuilder<T, Fields>
     }
 
     /**
@@ -64,7 +71,15 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * pd.where().eq("category", "Fruit").update({ price: 20 }) // update all fruit products price to 20
     */
     where() {
-        return new ResultSet<T, [], Key>(this, this.key, this.keyMap, this.indexes, [], "where") as unknown as WhereQueryBuilder<T>
+        return this.#resutSet([], "where") as unknown as WhereQueryBuilder<T>
+    }
+
+    /**
+     * @param f fields to select default: [] (means all fields in select)
+     * @param a action to for query builder
+    */
+    #resutSet(f: Readonly<Array<keyof T>> = [], a?: "select" | "where") {
+        return new ResultSet<T, typeof f, Key>(this, this.key, this.#keyMap, this.#idxs, f, a)
     }
 
     /**
@@ -82,13 +97,13 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
         const ds = toArray(docs)
         let st: Set<any> | undefined
         const r: T[] = []
-        const ix = this.indexes
-        const key = this.key
-        const keys = this.indexNames
+        const ix = this.#idxs
+        const pk = this.key
+        const keys = this.indexes
 
         ds.forEach(d => {
             try {
-                if (this.keyMap.get(d[key])) {
+                if (this.#keyMap.get(d[pk])) {
                     if (upsert) {
                         const u = this.where().eq(this.key, d[this.key]).update(d)
                         if (u.length)
@@ -100,14 +115,16 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
                 keys.forEach(i => {
                     if (!hasOwn(ix, i)) return
 
-                    st = ix[i as keyof T].get(d[i as keyof T])
-                    if (!st) {
-                        st = new Set();
-                        ix[i as keyof T].set(d[i as keyof T], st);
+                    if (this.#uniqIdx.has(i)) {
+                        ix[i].set(d[i], d[pk])
+                        return
                     }
-                    st.add(d[key])
+
+                    st = ix[i].get(d[i])
+                    if (!st) ix[i].set(d[i], st = new Set());
+                    st.add(d[pk])
                 })
-                this.keyMap.set(d[key], clone === false ? d : deepClone(d))
+                this.#keyMap.set(d[pk], clone === false ? d : deepClone(d))
                 if (!silent) this.emit("I", d)
                 r.push(d)
 
@@ -124,8 +141,8 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
     */
     load(data: T[], clear = false) {
         if (clear) {
-            this.keyMap.clear()
-            Object.values(this.indexes).forEach(i => i.clear())
+            this.#keyMap.clear()
+            Object.values(this.#idxs).forEach(i => i.clear())
         }
 
         this.insert(data, { silent: true, clone: false })
@@ -140,7 +157,7 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * @param {T[Key]} key key to get data by
      */
     get(key: T[Key]): T | undefined {
-        return this.keyMap.get(key)
+        return this.#keyMap.get(key)
     }
 
     /**
@@ -151,12 +168,23 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * const allData = pd.data() // [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...]
     */
     data(clone = true): T[] {
-        const d = [...this.keyMap.values()]
+        const d = [...this.#keyMap.values()]
         return clone ? d.map(i => deepClone(i)) : d
     }
 
-    get indexNames(): (keyof T)[] {
-        return Object.keys(this.indexes)
+    /**
+     * get all indexes names (including unique and key)
+    */
+    get indexes(): (keyof T)[] {
+        return Object.keys(this.#idxs)
+    }
+
+    /**
+     * tell is the key is an unique index name
+     * @param k name of the index
+    */
+    isUniqIdx(k: keyof T): boolean {
+        return this.#uniqIdx.has(k)
     }
 
     /**
@@ -164,9 +192,9 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * @param silent true to not emit events default false
     */
     close(silent = false): void {
-        this.keyMap.clear()
-        Object.keys(this.indexes).forEach(i => {
-            if (hasOwn(this.indexes, i)) this.indexes[i].clear()
+        this.#keyMap.clear()
+        Object.keys(this.#idxs).forEach(i => {
+            if (hasOwn(this.#idxs, i)) this.#idxs[i].clear()
         })
         if (!silent)
             this.emit("Q")
@@ -175,9 +203,9 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
     /**
      * return JSON of all data without cloning, key and index names
      * @example
-     * const json = pd.toJSON() // { key: "id", indexes: ["price", "category"], data: [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...] }
+     * const json = pd.toJSON() // { key: "id", indexes: ["price", "category", {name: "id", unique: true}], data: [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...] }
     */
     toJSON() {
-        return { key: this.key, indexes: this.indexNames, data: this.data() }
+        return { key: this.key, indexes: this.indexes.map(i => this.isUniqIdx(i) ? ({ name: i, unique: true }) : i), data: this.data() }
     }
 }

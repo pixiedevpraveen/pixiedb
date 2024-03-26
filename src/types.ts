@@ -1,4 +1,4 @@
-import type { SpeedIndex } from "speed-index";
+import type { BinaryIndex } from "./BinaryIndex";
 
 export type FilterOption = "eq" | "neq" | "gt" | "gte" | "lt" | "lte"
 
@@ -11,37 +11,45 @@ export type FQ<T, K extends keyof T> =
 export type OrderBy<T> = [key: keyof T, order: "asc" | "desc"]
 export type SortOptions<T> = ((keyof T) | OrderBy<T>)[]
 
-
-export type Index<T, Key extends keyof T> = { [K in keyof T]: SpeedIndex<T[K], Set<T[Key]>> }
+export type Index<T, Key extends keyof T> = { [K in keyof T]: BinaryIndex<T[K], Set<T[Key]> | T[Key]> }
 
 export type DBEvent<T> =
-    /**
-     * alias of load
-     * fires when data loaded
-    */
-    { type: "L"/* , payload: [] */ }
-    /**
-     * alias of change
-     * fires on any changes happened like (insert/update/delete) after some time (debounced)
-    */
-    | { type: "C"/* , payload: [evs: (DBEvent<T>['type'])[]] */ }
-    /**
-     * fires on row/record insert
-    */
-    | { type: "I", payload: [T] }
-    /**
-     * fires on row/record update
-    */
-    | { type: "U", payload: [doc: T, oldDoc: T] }
-    /**
-     * fires on row/record delete
-    */
-    | { type: "D", payload: [T] }
-    /**
-     * alias of Quit
-     * fires on database clone
-     */
-    | { type: "Q"/* , payload: [] */ }
+    {
+        /**
+         * "L" alias of load. fires when data loaded
+        */
+        type: "L"
+    }
+    | {
+        /**
+         * "C" alias of change. fires on any changes happened like (insert/update/delete) after some time (debounced)
+        */
+        type: "C"
+    }
+    | {
+        /**
+         * "I" fires on row/record insert
+        */
+        type: "I", payload: [T]
+    }
+    | {
+        /**
+         * "U" fires on row/record update
+        */
+        type: "U", payload: [doc: T, oldDoc: T]
+    }
+    | {
+        /**
+         * "D" fires on row/record delete
+        */
+        type: "D", payload: [T]
+    }
+    | {
+        /**
+         * "Q" alias of Quit. fires on database clone
+         */
+        type: "Q"
+    }
 
 
 export type Pretify<T> = {
@@ -105,15 +113,15 @@ export type BaseQueryBuilder<T extends Record<any, any>, SecondaryBuilder> = {
      * @example
      * pd.select().gt("price", 150).data()
     */
-   gt: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
-   
-   /**
-    * return rows where field value is greater than and eqaul to given value.
-    * rows are order by the given field in ascending order
-    * @example
-    * pd.select().gte("price", 100).data()
-   */
-  gte: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
+    gt: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
+
+    /**
+     * return rows where field value is greater than and eqaul to given value.
+     * rows are order by the given field in ascending order
+     * @example
+     * pd.select().gte("price", 100).data()
+    */
+    gte: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
 
     /**
      * return rows where field value is lower than to given value
@@ -121,7 +129,7 @@ export type BaseQueryBuilder<T extends Record<any, any>, SecondaryBuilder> = {
      * pd.select().lt("price", 120).data()
     */
     lt: <K extends keyof T>(field: K, value: T[K]) => SecondaryBuilder & BaseQueryBuilder<T, SecondaryBuilder>
-    
+
     /**
      * return rows where field value is lower than and eqaul to given value.
      * rows are order by the given field in ascending order
