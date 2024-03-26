@@ -6,7 +6,7 @@ import type { Index, SelectQueryBuilder, WhereQueryBuilder } from "./types";
 import { BinaryIndex } from "./BinaryIndex";
 
 /**-----------------------------------------------------
- * A tiny javascript in memory database with indexing and filters.
+ * A tiny in-memory javascript database with indexing and filters.
  *
  * @author Praveen yadav
  * @see https://github.com/pixiedevpraveen/pixiedb/tree/master/README.md

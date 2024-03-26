@@ -6,7 +6,7 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-A tiny javascript in memory database with indexing and sql like filters.
+A tiny in-memory javascript database with indexing and sql like filters.
 
 > [!WARNING]
 > Please keep in mind that PixieDb is still in under active development.
