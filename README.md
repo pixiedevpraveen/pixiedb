@@ -142,7 +142,7 @@ pd.where().eq("category", "Fruit").between("price", [6, 10]).update({price: 11})
 Get all docs/rows ordered respect to primary key/unique id.
 Pass false to get all without clone (don't modify). default: true
 ```ts
-pd.data(2)
+pd.data()
 // [{ id: 1, name: "Apple", price: 5, category: "Fruit" }, ...]
 ```
 
