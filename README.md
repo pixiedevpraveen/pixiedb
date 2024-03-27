@@ -8,6 +8,8 @@
 
 A tiny in-memory javascript database with indexing and sql like filters.
 
+PixieDb perform all operations (insert, delete, get) in log(n) time.
+
 > [!WARNING]
 > Please keep in mind that PixieDb is still in under active development.
 
@@ -178,3 +180,28 @@ JSON.stringify(pd)
 
 
 [view more](https://github.com/pixiedevpraveen/pixiedb/tree/master/README.md)
+
+
+## Roadmap
+ - [X] load docs
+ - [X] get all docs
+ - [X] get docs with key
+ - [X] Events (load, change, insert, update, delete, quit)
+ - [X] orderBy with multiple keys (sorting)
+ - [X] single doc with filters
+ - [X] count of docs with filters
+ - [X] update of docs with filters
+ - [X] delete of docs with filters
+ - [X] filters
+     - [X] eq (where value equal)
+     - [X] neq (where value not equal)
+     - [X] in (where value in)
+     - [X] nin (where value not in)
+     - [X] between (where value between to values)
+     - [X] nbetween (where value not between to values)
+     - [X] gt (where value greater than)
+     - [X] gte (where value greater than or equal to)
+     - [X] lt (where value less than)
+     - [X] lte (where value less than or equal to)
+     - [ ] custom query method
+ - [X] range offset (from) and count (limit of docs to return)
