@@ -1,20 +1,21 @@
-import { EvEmit } from "./EvEmit";
-import { ResultSet } from "./ResultSet";
-import { PDBError } from "./error";
-import { deepClone, freeze, hasOwn, isArray, toArray } from "./utils";
-import type { Index, SelectQueryBuilder, WhereQueryBuilder } from "./types";
-import { BinaryIndex } from "./BinaryIndex";
+import { EvEmit } from './EvEmit'
+import { ResultSet } from './ResultSet'
+import { PDBError } from './error'
+import { deepClone, freeze, hasOwn, isArray, toArray } from './utils'
+import type { Index, SelectQueryBuilder, WhereQueryBuilder } from './types'
+import { BinaryIndex } from './BinaryIndex'
 
-/**-----------------------------------------------------
+/**
+ * -----------------------------------------------------
  * A tiny in-memory javascript database with indexing and filters.
  *
  * @author Praveen yadav
  * @see https://github.com/pixiedevpraveen/pixiedb/tree/master/README.md
  * ---
  * @example
- * const pd = new PixieDb('id', ["price", "category"], products) // data is optional can be load after using the load method
- * const byId = pd.select().eq("id", 2).single() // { id: 2, name: "Banana", price: 10, category: "Fruit" }
- * const allByName = pd.select().eq("name", "Apple").orderBy(["name", ["price", "desc"]]).data() // [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...]
+ * const pd = new PixieDb('id', ['price', 'category'], products) // data is optional can be load after using the load method
+ * const byId = pd.select().eq('id', 2).single() // { id: 2, name: 'Banana', price: 10, category: 'Fruit' }
+ * const allByName = pd.select().eq('name', 'Apple').orderBy(['name', ['price', 'desc']]).data() // [{ id: 1, name: 'Apple', price: 10, category: 'Fruit' }, ...]
  */
 export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends EvEmit<T> {
     /**
@@ -28,6 +29,12 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
     #keyMap: Map<T[Key], T> = freeze(new Map<T[Key], T>())
 
     /**
+     * method to clone data
+     * default clone method is JSON stringify and parse 
+     */
+    cloneMethod = deepClone
+
+    /**
      * indexes is a map of index name and map of index value and set of keys
     */
     #idxs: Index<T, Key>
@@ -35,7 +42,7 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
 
     /**
      * @param key primary key or unique key for the database (key should be primitive).
-     * @param indexes list of index names or for unique indexes { name: "nameOfIndex", unique: true }
+     * @param indexes list of index names or for unique indexes { name: 'nameOfIndex', unique: true }
      * @param data data list/array to load (with clone)
     */
     constructor(key: Key, indexes: Array<keyof T | { name: keyof T, unique: boolean }> = [], data?: T[]) {
@@ -45,20 +52,22 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
         this.#uniqIdx = new Set<keyof T>([this.key])
         indexes.push(key)
 
-        let idx = Object.create(null) as Index<T, Key>
-        indexes.forEach(i => {
-            if (typeof i === 'object' && i.unique) this.#uniqIdx.add(i.name)
+        const idx = Object.create(null) as Index<T, Key>
+        indexes.forEach((i) => {
+            if (typeof i === 'object' && i.unique)
+                this.#uniqIdx.add(i.name)
             idx[typeof i === 'object' ? i.name : i] = new BinaryIndex()
         })
         this.#idxs = freeze(idx)
-        if (data) this.load(data)
+        if (data)
+            this.load(data)
     }
 
     /**
      * used to perform select after complex filtering
      * @example
-     * pd.select(["name", "price"]).eq("category", "Fruit").data() // [{ name: "Apple", price: 10 }, { name: "Banana", price: 10 }, ...]
-     * pd.select().eq("category", "Fruit").orderBy("name", ["price", "desc"]).data() // [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, { id: 2, name: "Banana", price: 10, category: "Fruit" }, ...] 
+     * pd.select(['name', 'price']).eq('category', 'Fruit').data() // [{ name: 'Apple', price: 10 }, { name: 'Banana', price: 10 }, ...]
+     * pd.select().eq('category', 'Fruit').orderBy('name', ['price', 'desc']).data() // [{ id: 1, name: 'Apple', price: 10, category: 'Fruit' }, { id: 2, name: 'Banana', price: 10, category: 'Fruit' }, ...]
     */
     select<Fields extends readonly (keyof T)[]>(fields?: Fields) {
         return this.#resutSet(isArray(fields) ? fields : []) as unknown as SelectQueryBuilder<T, Fields>
@@ -67,41 +76,38 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
     /**
      * used to perform delete/update with complex filtering
      * @example
-     * pd.where().eq("category", "Fruit").delete() // delete all fruit products
-     * pd.where().eq("category", "Fruit").update({ price: 20 }) // update all fruit products price to 20
+     * pd.where().eq('category', 'Fruit').delete() // delete all fruit products
+     * pd.where().eq('category', 'Fruit').update({ price: 20 }) // update all fruit products price to 20
     */
     where() {
-        return this.#resutSet([], "where") as unknown as WhereQueryBuilder<T>
+        return this.#resutSet([], 'where') as unknown as WhereQueryBuilder<T>
     }
 
     /**
      * @param f fields to select default: [] (means all fields in select)
      * @param a action to for query builder
     */
-    #resutSet(f: Readonly<Array<keyof T>> = [], a?: "select" | "where") {
+    #resutSet(f: Readonly<Array<keyof T>> = [], a?: 'select' | 'where') {
         return new ResultSet<T, typeof f, Key>(this, this.key, this.#keyMap, this.#idxs, f, a)
     }
 
     /**
      * Insert data or array of data into database
      * @example
-     * pd.insert({ id: 3, name: "Orange", price: 20, category: "Fruit" }) // insert single record
-     * pd.insert([{ id: 3, name: "Orange", price: 20, category: "Fruit" }, { id: 4, name: "Mango", price: 30, category: "Fruit" }]) // insert multiple records
+     * pd.insert({ id: 3, name: 'Orange', price: 20, category: 'Fruit' }) // insert single record
+     * pd.insert([{ id: 3, name: 'Orange', price: 20, category: 'Fruit' }, { id: 4, name: 'Mango', price: 30, category: 'Fruit' }]) // insert multiple records
      * @param docs data or array of data to insert
      * @param upsert set true to update if found
      * @param silent true to not emit events default false
      * @param clone false to not clone data before insert
     */
     insert<Doc extends T | T[]>(docs: Doc, { silent, clone, upsert }: { silent?: boolean, clone?: boolean, upsert?: boolean } = {}) {
-        if (typeof docs !== 'object') throw new PDBError("Value", "Value must be an object or object array")
-        const ds = toArray(docs)
+        if (typeof docs !== 'object')
+            throw new PDBError('Value', 'Value must be an object or object array')
         let st: Set<any> | undefined
-        const r: T[] = []
-        const ix = this.#idxs
-        const pk = this.key
-        const keys = this.indexes
+        const ds = toArray(docs), r: T[] = [], ix = this.#idxs, pk = this.key, keys = this.indexes
 
-        ds.forEach(d => {
+        ds.forEach((d) => {
             try {
                 if (this.#keyMap.get(d[pk])) {
                     if (upsert) {
@@ -112,8 +118,9 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
                     return
                 }
 
-                keys.forEach(i => {
-                    if (!hasOwn(ix, i)) return
+                keys.forEach((i) => {
+                    if (!hasOwn(ix, i))
+                        return
 
                     if (this.#uniqIdx.has(i)) {
                         ix[i].set(d[i], d[pk])
@@ -121,14 +128,17 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
                     }
 
                     st = ix[i].get(d[i])
-                    if (!st) ix[i].set(d[i], st = new Set());
+                    if (!st)
+                        ix[i].set(d[i], st = new Set())
                     st.add(d[pk])
                 })
-                this.#keyMap.set(d[pk], clone === false ? d : deepClone(d))
-                if (!silent) this.emit("I", d)
+                this.#keyMap.set(d[pk], clone === false ? d : this.cloneMethod(d))
+                if (!silent)
+                    this.emit('I', d)
                 r.push(d)
 
-            } catch (er) {
+            }
+            catch (er) {
             }
         })
 
@@ -146,14 +156,14 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
         }
 
         this.insert(data, { silent: true, clone: false })
-        this.emit("L")
+        this.emit('L')
     }
 
     /**
      * get doc using key (primary key/unique id)
      * @example
-     * const getByKey = pd.get(2)  // { id: 2, name: "Banana", price: 10, category: "Fruit" }
-     * 
+     * const getByKey = pd.get(2)  // { id: 2, name: 'Banana', price: 10, category: 'Fruit' }
+     *
      * @param {T[Key]} key key to get data by
      */
     get(key: T[Key]): T | undefined {
@@ -165,11 +175,11 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * clone the returning rows (don't modify values if pass clone as false)
      * default `true`
      * @example
-     * const allData = pd.data() // [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...]
+     * const allData = pd.data() // [{ id: 1, name: 'Apple', price: 10, category: 'Fruit' }, ...]
     */
     data(clone = true): T[] {
         const d = [...this.#keyMap.values()]
-        return clone ? d.map(i => deepClone(i)) : d
+        return clone ? d.map(i => this.cloneMethod(i)) : d
     }
 
     /**
@@ -193,17 +203,19 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
     */
     close(silent = false): void {
         this.#keyMap.clear()
-        Object.keys(this.#idxs).forEach(i => {
-            if (hasOwn(this.#idxs, i)) this.#idxs[i].clear()
+        Object.keys(this.#idxs).forEach((i) => {
+            if (hasOwn(this.#idxs, i))
+                this.#idxs[i].clear()
         })
         if (!silent)
-            this.emit("Q")
+            this.emit('Q')
+        this.offAll()
     }
 
     /**
      * return JSON of all data without cloning, key and index names
      * @example
-     * const json = pd.toJSON() // { key: "id", indexes: ["price", "category", {name: "id", unique: true}], data: [{ id: 1, name: "Apple", price: 10, category: "Fruit" }, ...] }
+     * const json = pd.toJSON() // { key: 'id', indexes: ['price', 'category', {name: 'id', unique: true}], data: [{ id: 1, name: 'Apple', price: 10, category: 'Fruit' }, ...] }
     */
     toJSON() {
         return { key: this.key, indexes: this.indexes.map(i => this.isUniqIdx(i) ? ({ name: i, unique: true }) : i), data: this.data() }

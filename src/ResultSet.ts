@@ -1,13 +1,13 @@
-import { PDBError } from "./error"
-import { PixieDb } from "./index"
-import type { FQ, Index, MaybePartial, Pretify, SortOptions, OrderBy } from "./types"
-import { deepClone, hasOwn, isArray, isNullOrUndefined } from "./utils"
+import { PDBError } from './error'
+import { PixieDb } from './index'
+import type { FQ, Index, MaybePartial, Pretify, SortOptions, OrderBy } from './types'
+import { hasOwn, isArray, isNullOrUndefined, valArr, valPair } from './utils'
 
 export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array<keyof T>>, Key extends keyof T> {
     /**
      * fields Queries to filter rows
     */
-    #fieldsQuery: FQ<T, keyof T>[] = []
+    #query: FQ<T, keyof T>[] = []
     /**
      * Filtered rows
     */
@@ -31,15 +31,15 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
     #clone = true
 
     /**
-      * Action to perform "select" | "where"
-      * @type {"select" | "where"}
+      * Action to perform 'select' | 'where'
+      * @type {'select' | 'where'}
      */
-    #action: "select" | "where"
+    #action: 'select' | 'where'
 
     /**
      * primary key or unique key for the database
     */
-    #key: Key
+    readonly #key: Key
 
     /**
      * keyMap is a map of key and data
@@ -54,23 +54,22 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
     /**
      * fields to return mapped object with select
     */
-    readonly #fields: Readonly<(keyof T)[]>
+    #fields: Readonly<(keyof T)[]>
 
     #sortOptions: OrderBy<T>[] = []
-    // /**
-    //  * F: "filter"
-    //  * S: "sort"
-    //  * O: "offset"
-    //  * L: "limit"
-    // */
-    #opStack: ("F" | "S" | "O" | "L")[] = []
+    /**
+     * F: 'filter'
+     * S: 'sort'
+     * R: 'Range slice (offset and limit)'
+    */
+    #opStack: ('F' | 'S' | 'R')[] = []
 
     /**
      * @param db PixieDb instance
     */
     readonly #db: PixieDb<T, Key>
 
-    constructor(db: PixieDb<T, Key>, key: Key, kmp: Map<T[Key], T>, idx: Index<T, Key>, fields?: Fields, action: "select" | "where" = "select") {
+    constructor(db: PixieDb<T, Key>, key: Key, kmp: Map<T[Key], T>, idx: Index<T, Key>, fields?: Fields, action: 'select' | 'where' = 'select') {
         this.#db = db
         this.#key = key
         this.#kmp = kmp
@@ -86,58 +85,71 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
      * @param val2 index value 2
      * @param op operation on index
     */
-    #setByIndex<K extends keyof T>(name: K, value: T[K], op: FQ<T, keyof T>[0] = "eq", val2?: T[K]) {
-        let ks: Set<T[Key]> | T[Key][] | undefined
-        let t: (Set<T[Key]> | T[Key])[] | undefined
+    #setByIndex<K extends keyof T>(name: K, value: T[K], op: FQ<T, keyof T>[0] = 'eq', val2?: T[K]) {
+        let ks: Set<T[Key]> | T[Key][] | undefined, t: (Set<T[Key]> | T[Key])[] | undefined
 
         switch (op) {
-            case "eq":
+            case 'eq':
                 ks = this.#idx[name].get(value)
                 break;
-            case "in":
+            case 'in':
                 t = this.#idx[name].in(value)
                 break;
-            case "btw":
-                if (val2 === undefined) break;
+            case 'btw':
+                if (val2 === undefined)
+                    break;
                 t = this.#idx[name].btw(value, val2)
                 break;
-            case "gt":
-            case "lt":
-            case "gte":
-            case "lte":
+            case 'gt':
+            case 'lt':
+            case 'gte':
+            case 'lte':
                 const gt = /^gt/.test(op)
-                t = this.#idx[name][gt ? "gt" : "lt"](value, /e$/.test(op));
+                t = this.#idx[name][gt ? 'gt' : 'lt'](value, /e$/.test(op));
                 gt || t.reverse()
                 break;
         }
 
-        if (t) this.#db.isUniqIdx(name) ? ks = t as T[Key][] : t.forEach(s => s instanceof Set && s.forEach(k => this.#setByKey(k)))
+        if (t)
+            this.#db.isUniqIdx(name) ? ks = t as T[Key][] : t.forEach(s => s instanceof Set && s.forEach(k => this.#setByKey(k)))
 
         ks?.forEach(k => this.#setByKey(k))
     }
 
+    /**
+     * Add key to filtered rows if the key is in the cache
+     * @param k key to check and add
+     */
     #setByKey(k: T[Key]) {
         const v = this.#kmp.get(k)
-        if (v) this.#filteredrows.push(v)
+        /**
+         * Add document to the filtered rows
+         * @type {T} cloned document if clone is true else the original document
+        */
+        v && this.#filteredrows.push(this.#clonedDoc(v))
     }
 
     /**
-     * Used to clone document
-    */
-    #clonedDoc(doc: T, force?: boolean) {
-        if (!this.#clone && !force) return doc
-
-        return deepClone(doc)
+     * Clone the document if clone or force is true
+     * @param doc Document to clone
+     * @param force Force cloning, by default cloning will be skipped if clone is false
+     * @returns Cloned document
+     */
+    #clonedDoc(doc: T, force?: boolean): T {
+        return this.#clone || force ? this.#db.cloneMethod(doc) : doc
     }
 
     /**
-     * Pick fields from document
-    */
-    #pick(doc: T) {
-        if (!this.#fields.length) return doc
-        const data = {} as T;
-        this.#fields.forEach(k => data[k] = doc[k])
-        return data
+     * Return shallow copied object with only fields specified in fields query
+     * If fields query is empty then return whole document
+     * @param doc Document to pick fields from
+     */
+    #pick(doc: T): T {
+        if (!this.#fields.length)
+            return doc;
+        const r = {} as T;
+        this.#fields.forEach(k => r[k] = doc[k]);
+        return r;
     }
 
     /**
@@ -149,83 +161,93 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
      * also perform limit and from/offset action
     */
     #filter() {
-        if (this.#filtered) return
-        let started = false
-        let from = this.#from
-        let max = this.#max
+        if (this.#filtered)
+            return
+        let started = false // flag that indicates whether some filter queries were applied
+        let from = this.#from, max = this.#max
 
-        const qs = this.#fieldsQuery
-        const fq = qs[0]
-        if (!fq) {
-            if (from === 0 && max === 1)
-                this.#filteredrows = [this.#kmp.values().next().value]
-            else
+        const qs = this.#query, fq = qs[0] // first filter query
+        if (!fq) { // if there are no filter queries at all
+            if (from === 0 && max === 1) { // return first element
+                const v = this.#kmp.values().next().value
+                this.#filteredrows = v ? [v] : []
+            } else { // return slice of all elements
                 this.#setSliced()
-            this.#filtered = true
-            return
-        }
-
-        if (fq[1] === this.#key && /^(eq|in)/.test(fq[0])) {
-            (fq[2] instanceof Set ? fq[2] : [fq[2]]).forEach(k => this.#setByKey(k as T[Key]))
-            started = true
-        }
-
-        // handles "btw", "nbtw", "gt", "gte", "lt", "lte", and ("in", "eq" for indexes only)
-        else if (hasOwn(this.#idx, fq[1]) && /btw|^(eq|gt|in|lt)/.test(fq[0])) {
-            if (fq[0] === "nbtw") {
-                this.#setByIndex(fq[1], fq[2] as T[typeof fq[1]], "lt")
-                fq[2] = fq[3]
-                fq[0] = "gt" as "nbtw"
             }
-            this.#setByIndex(fq[1], fq[2] as T[typeof fq[1]], fq[0], fq[3])
-            started = true
-        }
-
-        if (started) qs.shift()
-
-        if (!qs.length) {
-            if (!started)
-                this.#filteredrows = this.#setSliced()
-            this.#filtered = true
+            this.#filtered = true // mark as filtered
             return
         }
 
-        const data = started ? this.#filteredrows : this.#kmp.values()
+        if (fq[1] === this.#key && /^(eq|in)/.test(fq[0])) { // handle filter query that uses index
+            // (fq[2] instanceof Set ? fq[2] : [fq[2]]).forEach(k => this.#setByKey(k as T[Key]))
+            (fq[2] instanceof Set ? fq[2] : [fq[2]]).forEach(k => this.#setByKey(k as T[Key])) // get values to check and add all values to the filtered rows
+            started = true // mark as started
+        }
 
-        this.#filteredrows = []
+        // handles 'btw', 'nbtw', 'gt', 'gte', 'lt', 'lte', and ('in', 'eq' for indexes only)
+        else if (hasOwn(this.#idx, fq[1]) && /btw|^(eq|gt|in|lt)/.test(fq[0])) {
+            if (fq[0] === 'nbtw') { // handle 'nbtw'
+                // in this if we are getting docs which are less than value1
+                this.#setByIndex(fq[1], fq[2] as T[typeof fq[1]], 'lt') // set values using '<' operator
 
-        for (const d of data) {
-            const add = !qs.some(([op, k, v, v2]) => {
+                // now making the query to append docs which are greater than value2
+                fq[2] = fq[3] // replace value1 with value2
+                fq[0] = 'gt' as 'nbtw' // change operator to '>'
+            }
+            this.#setByIndex(fq[1], fq[2] as T[typeof fq[1]], fq[0], fq[3]) // set values using specified operator
+            started = true // mark as started
+        }
+
+        if (started)
+            qs.shift() // remove applied filter query
+
+        if (!qs.length) { // if there are no more filter queries
+            if (!started)
+                this.#filteredrows = this.#setSliced() // return slice of all elements
+            this.#filtered = true // mark as filtered
+            return // end function
+        }
+
+        const data = started ? this.#filteredrows : this.#kmp.values() // get data to iterate over
+
+        this.#filteredrows = [] // reset filtered rows
+        let add: boolean
+
+        for (const d of data) { // iterate over data
+            // flag that indicates whether document should be added to filtered rows
+            add = !qs.some(([op, k, v, v2]) => {
+                // iterate over filter queries
                 // return opposite
                 switch (op) {
-                    case "btw":
+                    case 'btw': // between operator
                         return !(d[k] >= v && d[k] <= v2)
-                    case "eq":
+                    case 'eq': // equal operator
                         return d[k] !== v
-                    case "gt":
+                    case 'gt': // greater than operator
                         return d[k] <= v
-                    case "gte":
+                    case 'gte': // greater than or equal operator
                         return d[k] < v
-                    case "in":
+                    case 'in': // in operator (for indexes only)
                         return !v.has(d[k])
-                    case "lt":
+                    case 'lt': // less than operator
                         return d[k] >= v
-                    case "lte":
+                    case 'lte': // less than or equal operator
                         return d[k] > v
-                    case "nbtw":
+                    case 'nbtw': // not between operator
                         return d[k] >= v && d[k] <= v2
-                    case "neq":
+                    case 'neq':
                         return d[k] === v
-                    case "nin":
+                    case 'nin':
                         return v.has(d[k])
                     default:
-                        throw new PDBError("Filter", "Unsupported filter: " + op)
+                        throw new PDBError('Filter', 'Unsupported filter: ' + op)
                 }
             })
             if (add && --from < 0) {
                 this.#filteredrows.push(d)
                 if (max !== -1) {
-                    if (--max <= 0) break
+                    if (--max <= 0)
+                        break
                 }
             }
         }
@@ -236,10 +258,11 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
     }
 
     /**
-     * perform update delete task here to reduce bundle size or in filter method
+     * Perform update and delete operations on documents in filtered rows and also update indexes.
+     * @param data data to update
     */
-    #performUD(docs: T[], data?: MaybePartial<T>) {
-        this.#validateAction("where")
+    #performUD(data?: MaybePartial<T>) {
+        this.#valAction('where')
 
         const r: T[] = []
         let st: Set<any> | undefined
@@ -248,9 +271,10 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
         let isUniq: boolean
         let ikeys = Object.keys(ix) as (keyof typeof data)[]
 
-        if (data) ikeys = ikeys.filter(i => hasOwn(data, i))
+        if (data)
+            ikeys = ikeys.filter(i => hasOwn(data, i))
 
-        docs.forEach(d => {
+        this.#filteredrows.forEach(d => {
             ikeys.forEach(i => {
                 isUniq = this.#db.isUniqIdx(i)
 
@@ -262,7 +286,8 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
                         return
                     }
                     st = ix[i].get(data[i])
-                    if (!st) ix[i].set(data[i], st = new Set());
+                    if (!st)
+                        ix[i].set(data[i], st = new Set());
                     st.add(d[pk])
                 }
 
@@ -283,13 +308,18 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
 
             let c = d
             if (data) {
+                // console.log(Object.assign(d, data));
+
                 Object.assign(d, data)
+                this.#kmp.set(d[pk], d)
+
                 const o = this.#clonedDoc(c)
                 c = this.#clonedDoc(d, true)
-                this.#db.emit("U", c, o)
+                this.#db.emit('U', c, o)
+                // console.log(o);
             } else {
                 this.#kmp.delete(d[pk])
-                this.#db.emit("D", d)
+                this.#db.emit('D', d)
             }
 
             r.push(c)
@@ -301,10 +331,10 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
      * Delete filtered data
     */
     delete(): T[] {
-        this.#validateAction("where")
+        this.#valAction('where')
         this.#clone = false
         this.#filter()
-        return this.#performUD(this.#filteredrows)
+        return this.#performUD()
     }
 
     /**
@@ -312,18 +342,19 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
      * @param doc document to update
     */
     update(doc: T | Partial<T>): T[] {
-        if (hasOwn(doc, this.#key)) delete doc[this.#key]
+        if (hasOwn(doc, this.#key))
+            delete doc[this.#key]
 
-        this.#validateAction("where")
+        this.#valAction('where')
         this.#filter()
-        return this.#performUD(this.#filteredrows, doc)
+        return this.#performUD(doc)
     }
 
     /**
      * Returns filtered list of shallow copied doc
     */
     data() {
-        this.#validateAction("select")
+        this.#valAction('select')
         this.#filter()
         // console.log(this.#from, this.#max);
         this.#setSliced(this.#filteredrows)
@@ -334,17 +365,20 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
      * Returns filtered single shallow copied doc
     */
     single() {
-        this.#validateAction("select")
+        this.#valAction('select')
         this.#filter()
         this.#setSliced(this.#filteredrows)
         return this.#clonedDoc(this.#pick(this.#filteredrows[0])) as Fields extends [] ? T : Pick<Pretify<T>, Fields[number]>
     }
 
     /**
-     * @throws error if action don't match
-    */
-    #validateAction(act: "select" | "where"): void {
-        if (this.#action !== act) throw new PDBError("Action", "unable to perform this action in " + act)
+     * Validate current action
+     * @param act action name
+     * @throws {PDBError} if action is not valid
+     */
+    #valAction(act: 'select' | 'where'): void {
+        if (this.#action !== act)
+            throw new PDBError('Action', `unable to perform this action in "${act}"`);
     }
 
     /**
@@ -356,7 +390,7 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
             this.#from = from
         if (count >= 0)
             this.#max = count
-        this.#opStack.push("O")
+        this.#opStack.push('R')
         return this
     }
 
@@ -372,7 +406,8 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
     */
     count(): number {
         this.#clone = false
-        if (!this.#fieldsQuery.length) return this.#kmp.size
+        if (!this.#query.length)
+            return this.#kmp.size
         this.#filter()
         return this.#filteredrows.length
     }
@@ -381,8 +416,14 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
      * Sort data using keys
     */
     orderBy(opt: SortOptions<T>) {
-        this.#sortOptions = opt.map<OrderBy<T>>(o => isArray(o) && o.length === 2 ? o : [o, "asc"])
-        this.#opStack.push("S")
+        valArr(opt)
+        this.#sortOptions = opt.map<OrderBy<T>>(o => {
+            let s: OrderBy<T> = isArray(o) ? o : [o, 'asc']
+            if (s.length !== 2 || typeof s[0] !== 'string' || !['asc', 'desc'].includes(s[1]))
+                throw new PDBError('Value', 'Incorrect values for orderBy')
+            return s
+        })
+        this.#opStack.push('S')
         this.#filter()
         this.#sort()
         return this
@@ -393,10 +434,11 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
      * @param opt sort options
     */
     #sort() {
-        if (!this.#sortOptions.length) return
-        // if (this.#sorted) throw new PDBError("Action", "Already sorted")
-        this.#validateAction("select")
         let len = this.#sortOptions.length
+        if (!len)
+            return
+        // if (this.#sorted) throw new PDBError('Action', 'Already sorted')
+        this.#valAction('select')
 
         this.#filteredrows.sort((a, b) => {
             let comparison = 0;
@@ -414,7 +456,8 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
                     v1 < v2 ? -1 : 1
                 )
                 cmp *= priority;
-                if (order === "desc") cmp *= -1
+                if (order === 'desc')
+                    cmp *= -1
 
                 comparison += cmp
 
@@ -425,50 +468,50 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
     }
 
     eq<K extends keyof T>(field: K, value: T[K]) {
-        return this.#fAdd("eq", field, value)
+        return this.#fAdd('eq', field, value)
     }
 
     in<K extends keyof T>(field: K, values: T[K][]) {
-        if (!isArray(values)) throw new PDBError("Value", "Invalid values")
+        valArr(values)
         const st = new Set<any>(values)
-        return this.#fAdd("in", field, st)
+        return this.#fAdd('in', field, st)
     }
     nin<K extends keyof T>(field: K, values: T[K][]) {
-        if (!isArray(values)) throw new PDBError("Value", "Invalid values")
+        valArr(values)
         const st = new Set<any>(values)
-        return this.#fAdd("nin", field, st)
+        return this.#fAdd('nin', field, st)
     }
 
     between<K extends keyof T>(field: K, values: [T[K], T[K]]) {
-        if (!isArray(values) || values.length !== 2) throw new PDBError("Value", "Invalid values")
+        valPair(values)
 
-        return this.#fAdd("btw", field, values[0], values[1])
+        return this.#fAdd('btw', field, values[0], values[1])
     }
 
     nbetween<K extends keyof T>(field: K, values: [T[K], T[K]]) {
-        if (!isArray(values) || values.length !== 2) throw new PDBError("Value", "Invalid values")
+        valPair(values)
 
-        return this.#fAdd("nbtw", field, values[0], values[1])
+        return this.#fAdd('nbtw', field, values[0], values[1])
     }
 
     neq<K extends keyof T>(field: K, value: T[K]) {
-        return this.#fAdd("neq", field, value)
+        return this.#fAdd('neq', field, value)
     }
 
     gt<K extends keyof T>(field: K, value: T[K]) {
-        return this.#fAdd("gt", field, value)
+        return this.#fAdd('gt', field, value)
     }
 
     gte<K extends keyof T>(field: K, value: T[K]) {
-        return this.#fAdd("gte", field, value)
+        return this.#fAdd('gte', field, value)
     }
 
     lt<K extends keyof T>(field: K, value: T[K]) {
-        return this.#fAdd("lt", field, value)
+        return this.#fAdd('lt', field, value)
     }
 
     lte<K extends keyof T>(field: K, value: T[K]) {
-        return this.#fAdd("lte", field, value)
+        return this.#fAdd('lte', field, value)
     }
 
     /**
@@ -476,14 +519,15 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
     */
     #fAdd(...v: FQ<T, keyof T>) {
         // if (this.#opStack.length < 1)
-        // this.#opAdd("F")
+        // this.#opAdd('F')
         const prev = this.#opStack.at(-1)
-        if (prev && prev !== "F") throw new PDBError("Action", "Unable to add filter")
-        // if (this.#sorted) throw new PDBError("Action", "Unable to add filter after sort")
-        this.#fieldsQuery.push(v)
+        if (prev && prev !== 'F')
+            throw new PDBError('Action', 'Unable to add filter')
+        // if (this.#sorted) throw new PDBError('Action', 'Unable to add filter after sort')
+        this.#query.push(v)
         return this
     }
-    // #opAdd(op: "F" | "S" | "O" | "L") {
+    // #opAdd(op: 'F' | 'S' | 'O' | 'L') {
     //     const prev = this.#opStack.at(-1)
 
     //     if (!prev) {
@@ -491,8 +535,8 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
     //         return
     //     }
     //     switch (op) {
-    //         case "F":
-    //             if (prev !== "F") throw new PDBError("Action", "Unable to add filter")
+    //         case 'F':
+    //             if (prev !== 'F') throw new PDBError('Action', 'Unable to add filter')
     //             break;
 
     //         default:
@@ -501,7 +545,7 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
     // }
 
     toJSON(clone = false) {
-        this.#validateAction("select")
+        this.#valAction('select')
         this.#clone = clone
         return this.data()
     }

@@ -1,3 +1,5 @@
+import { PDBError } from "./error"
+
 export function freeze<T = any>(o: T): Readonly<T> {
     return Object.freeze(o)
 }
@@ -18,17 +20,24 @@ export function toArray<T extends any = any>(o: T | T[]): T[] {
     return Array.isArray(o) ? o : [o]
 }
 
-export function hasOwn<T>(o: T, k: PropertyKey): o is HasProperty<T> {
+export function remove<T>(array:T[], fn:T) {
+    array.splice(array.indexOf(fn), 1)
+}
+
+export function valArr<T extends any = any>(o: T | T[]) {
+    if (!isArray(o)) throw new PDBError("Value", "Invalid values")
+}
+
+export function valPair<T extends any = any>(o: T | T[]) {
+    if (!isArray(o) || o.length !== 2) throw new PDBError("Value", "Invalid values")
+}
+
+export function hasOwn<T>(o: T, k: PropertyKey): k is keyof T {
     return Object.hasOwnProperty.call(o, k)
 }
 
 export function deepClone<T>(o: T): T {
-    try {
-        return structuredClone ? structuredClone(o) : JSON.parse(JSON.stringify(o)) as T
-    } catch (er) {
-        console.log(er);
-    }
-    return o
+    return typeof structuredClone === 'function' ? structuredClone(o) : JSON.parse(JSON.stringify(o))
 }
 
 export function throttle<T extends any[]>(fn: (...arg: T) => void, delay = 1000, ...arg: T) {

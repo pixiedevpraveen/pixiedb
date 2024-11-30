@@ -152,8 +152,8 @@ export type QueryBuilder<T extends Record<any, any>, SecondaryBuilder> = {
      * used to sort data with single or multiple keys
      * 
      * @example
-     * pd.select().orderBy("name", "price")
-     * pd.select().orderBy("name", ["price", "desc"])
+     * pd.select().orderBy("name", "price").data()
+     * pd.select().orderBy("name", ["price", "desc"]).data()
     */
     orderBy: (opt: SortOptions<T>) => SecondaryBuilder & Omit<QueryBuilder<T, SecondaryBuilder>, "orderBy">
 }
@@ -177,7 +177,7 @@ type SelectBaseQueryBuilder<T extends Record<any, any>, Fields extends readonly 
     /**
      * count of the filtered rows/docs/records
      * @example
-     * pd.select("name", "price").in("id", [2, 3, 8]).count()
+     * pd.select().between("price", [8, 12]).count()
     */
     count: () => number
 }
