@@ -1,9 +1,7 @@
-import { assert, describe, test, type TestOptions } from 'vitest'
+import { assert, describe, test } from 'vitest'
 import { type Product, products, filtedSortedProducts } from './common';
 import { PixieDb } from "../src";
 import { SortOptions } from '../src/types';
-
-const testOpt: TestOptions = { timeout: 1000 }
 
 const key = 'id'
 const indexes: Array<keyof Product> = ["price", "category"]
@@ -18,6 +16,8 @@ const selectFilterExpect = filtedSortedProducts(sortOptions, filterFields)
 const inLen = 10
 const inKeys = [1, 2, 3, 4, 7, 8, 9, 10]
 const nInKeys = [1, 5, 6, 7, 8, 9, 10]
+const inPrices = [1, 2, 3, 4, 7, 8, 9, 10]
+const nInPrices = [1, 5, 6, 7, 8, 9, 10]
 
 describe('PixieDb test', () => {
   test('db created', () => {
@@ -65,11 +65,19 @@ describe('PixieDb test', () => {
     )
   })
 
-  test('Products in ' + inKeys, () => {
+  test('Products id in ' + inKeys, () => {
     const kSet = new Set(inKeys)
     assert.deepEqual(
-      db.select().in("price", inKeys).range(0, inLen).orderBy(["id"]).data(),
-      products.filter(p => kSet.has(p.price)).slice(0, inLen)
+      db.select().in("id", inKeys).range(0, inLen).orderBy(["id"]).data(),
+      products.filter(p => kSet.has(p.id))
+    )
+  })
+
+  test('Products price in ' + inPrices, () => {
+    const kSet = new Set(inPrices)
+    assert.deepEqual(
+      db.select().in("price", inPrices).range(0, inLen).orderBy(["id"]).data(),
+      products.filter(p => kSet.has(p.price))
     )
   })
 
@@ -118,9 +126,10 @@ describe('PixieDb test', () => {
 
   const crudProd = products[10]
   test('Update product with id ' + crudProd.id, () => {
+    crudProd.price = 122
     assert.deepEqual(
       db.where().eq("id", crudProd.id).update({ price: 122 }),
-      [{ ...crudProd, ...{ price: 122 } }]
+      [crudProd]
     )
   })
 
@@ -131,10 +140,10 @@ describe('PixieDb test', () => {
     )
   })
   test('confirm deleted product with id ' + crudProd.id, () => {
-    assert.deepEqual(
+    assert.equal(
       db.select().eq("id", crudProd.id).single(),
       undefined
     )
   })
 
-}, testOpt)
+}, { timeout: 1000 })
