@@ -418,7 +418,7 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
     orderBy(opt: SortOptions<T>) {
         valArr(opt)
         this.#sortOptions = opt.map<OrderBy<T>>(o => {
-            let s: OrderBy<T> = isArray(o) ? o : [o, 'asc']
+            const s: OrderBy<T> = isArray(o) ? o : [o, 'asc']
             if (s.length !== 2 || typeof s[0] !== 'string' || !['asc', 'desc'].includes(s[1]))
                 throw new PDBError('Value', 'Incorrect values for orderBy')
             return s
@@ -434,7 +434,7 @@ export class ResultSet<T extends Record<any, any>, Fields extends Readonly<Array
      * @param opt sort options
     */
     #sort() {
-        let len = this.#sortOptions.length
+        const len = this.#sortOptions.length
         if (!len)
             return
         // if (this.#sorted) throw new PDBError('Action', 'Already sorted')

@@ -6,4 +6,4 @@ export class PDBError<N extends PDBErrorType> extends Error {
     }
 }
 
-type PDBErrorType = "Property" | "Value" | "Type" | "Event" | "Action" | "Filter"
+type PDBErrorType = 'Property' | 'Value' | 'Type' | 'Event' | 'Action' | 'Filter'
