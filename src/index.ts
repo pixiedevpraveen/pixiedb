@@ -21,7 +21,7 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
     /**
      * primary key or unique key for the database
     */
-    readonly key
+    readonly key: Key
 
     /**
      * keyMap is a map of key and data
@@ -69,7 +69,7 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * pd.select(['name', 'price']).eq('category', 'Fruit').data() // [{ name: 'Apple', price: 10 }, { name: 'Banana', price: 10 }, ...]
      * pd.select().eq('category', 'Fruit').orderBy('name', ['price', 'desc']).data() // [{ id: 1, name: 'Apple', price: 10, category: 'Fruit' }, { id: 2, name: 'Banana', price: 10, category: 'Fruit' }, ...]
     */
-    select<Fields extends readonly (keyof T)[]>(fields?: Fields) {
+    select<Fields extends readonly (keyof T)[]>(fields?: Fields): SelectQueryBuilder<T, Fields> {
         return this.#resutSet(isArray(fields) ? fields : []) as unknown as SelectQueryBuilder<T, Fields>
     }
 
@@ -79,15 +79,15 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * pd.where().eq('category', 'Fruit').delete() // delete all fruit products
      * pd.where().eq('category', 'Fruit').update({ price: 20 }) // update all fruit products price to 20
     */
-    where() {
-        return this.#resutSet([], 'where') as unknown as WhereQueryBuilder<T>
+    where(): WhereQueryBuilder<T> {
+        return this.#resutSet([], 'where')
     }
 
     /**
      * @param f fields to select default: [] (means all fields in select)
      * @param a action to for query builder
     */
-    #resutSet(f: Readonly<Array<keyof T>> = [], a?: 'select' | 'where') {
+    #resutSet(f: Readonly<Array<keyof T>> = [], a?: 'select' | 'where'): ResultSet<T, readonly (keyof T)[], Key> {
         return new ResultSet<T, typeof f, Key>(this, this.key, this.#keyMap, this.#idxs, f, a)
     }
 
@@ -101,7 +101,7 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * @param silent true to not emit events default false
      * @param clone false to not clone data before insert
     */
-    insert<Doc extends T | T[]>(docs: Doc, { silent, clone, upsert }: { silent?: boolean, clone?: boolean, upsert?: boolean } = {}) {
+    insert<Doc extends T | T[]>(docs: Doc, { silent, clone, upsert }: { silent?: boolean, clone?: boolean, upsert?: boolean } = {}): Doc extends any[] ? T[] : (T | undefined) {
         if (typeof docs !== 'object')
             throw new PDBError('Value', 'Value must be an object or object array')
         let st: Set<any> | undefined
@@ -149,7 +149,7 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * @param data data list/array to load (without clone)
      * @param clear true to clear existing data
     */
-    load(data: T[], clear = false) {
+    load(data: T[], clear = false): void {
         if (clear) {
             this.#keyMap.clear()
             Object.values(this.#idxs).forEach(i => i.clear())
@@ -217,7 +217,11 @@ export class PixieDb<T extends Record<any, any>, Key extends keyof T> extends Ev
      * @example
      * const json = pd.toJSON() // { key: 'id', indexes: ['price', 'category', {name: 'id', unique: true}], data: [{ id: 1, name: 'Apple', price: 10, category: 'Fruit' }, ...] }
     */
-    toJSON() {
+    toJSON(): {
+        key: Key;
+        indexes: (keyof T)[];
+        data: T[];
+    } {
         return { key: this.key, indexes: this.indexes.map(i => this.isUniqIdx(i) ? ({ name: i, unique: true }) : i), data: this.data() }
     }
 }

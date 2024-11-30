@@ -22,7 +22,7 @@ export class EvEmit<T> {
      * set change event listener fire throttle time
      * @param cTime Change emit fire throttle time
     */
-    setCEVTime(cTime: number) {
+    setCEVTime(cTime: number): void {
         this.cEv = throttle(() => this.emit('C'), cTime)
     }
 
@@ -45,17 +45,16 @@ export class EvEmit<T> {
      * pd.on('L', (ev)=>{ console.log('database loaded') }) // on load event
      * pd.on('Q', (ev)=>{}) // on quit event
     */
-    on<Type extends DBEvent<T>['type'] | DBEvent<T>['type'][], Ev extends Type extends any[] ? Type[number] : Type>(event: Type, fn: ((...args: Extract<DBEvent<T>, { type: Ev }> extends { payload: infer Payload } ? [event: Ev, data: Payload extends any[] ? Payload : [Payload]] : [event: Ev]) => void)) {
+    on<Type extends DBEvent<T>['type'] | DBEvent<T>['type'][], Ev extends Type extends any[] ? Type[number] : Type>(event: Type, fn: ((...args: Extract<DBEvent<T>, { type: Ev }> extends { payload: infer Payload } ? [event: Ev, data: Payload extends any[] ? Payload : [Payload]] : [event: Ev]) => void)): typeof fn {
         toArray(event).forEach(e => {
             if (hasOwn(this.events, e))
                 this.events[e].push(fn)
         })
         return fn
     }
-    protected offAll() {
+
+    protected offAll(): void {
         this.events = freeze({ L: [], I: [], U: [], D: [], C: [], Q: [] })
-        // for (const c in this.events)
-        //     if (hasOwn(this.events, c)) this.events[c] = []
     }
 
     /**
@@ -65,7 +64,7 @@ export class EvEmit<T> {
      * @example
      * pd.off('Q', (ev)=>{})
     */
-    off<Type extends DBEvent<T>['type'] | DBEvent<T>['type'][], Ev extends Type extends any[] ? Type[number] : Type>(event: Type, fn: ((...args: Extract<DBEvent<T>, { type: Ev }> extends { payload: infer Payload } ? [event: Ev, data: Payload extends any[] ? Payload : [Payload]] : [event: Ev]) => void)) {
+    off<Type extends DBEvent<T>['type'] | DBEvent<T>['type'][], Ev extends Type extends any[] ? Type[number] : Type>(event: Type, fn: ((...args: Extract<DBEvent<T>, { type: Ev }> extends { payload: infer Payload } ? [event: Ev, data: Payload extends any[] ? Payload : [Payload]] : [event: Ev]) => void)): typeof fn {
         toArray(event).forEach(e => hasOwn(this.events, e) && remove(this.events[e], fn))
         return fn
     }
@@ -80,7 +79,7 @@ export class EvEmit<T> {
      * pd.emit('L') // emit load event
      * pd.emit('Q') // emit quit event
     */
-    emit<Type extends DBEvent<T>['type']>(...args: Extract<DBEvent<T>, { type: Type }> extends { payload: infer Payload } ? [event: Type, ...data: Payload extends any[] ? Payload : [Payload]] : [event: Type]) {
+    emit<Type extends DBEvent<T>['type']>(...args: Extract<DBEvent<T>, { type: Type }> extends { payload: infer Payload } ? [event: Type, ...data: Payload extends any[] ? Payload : [Payload]] : [event: Type]): void {
         const [ev, ...data] = args;
         hasOwn(this.events, ev) && setTimeout(() => this.events[ev].forEach(fn => fn(ev, data)), 10)
         'IUD'.includes(ev) && this.cEv()
