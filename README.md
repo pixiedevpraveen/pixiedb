@@ -6,9 +6,17 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-A tiny in-memory javascript database with indexing and sql like filters.
+A tiny in-memory javascript database with indexing and SQL like filters.
 
-PixieDb perform all operations (insert, delete, get) in log(n) time.
+## Features
+ - Speed - PixieDb perform get in the O(1) and other all operations (insert, delete, select*) in log(n) time. Can perform get operation with unique index (18M ops/s) and binary-index (5M ops/s) which is 15-20 times faster than [lokijs/lokidb](https://github.com/techfort/LokiJS).
+ - Quick load - loads data 20x faster than [lokijs/lokidb](https://github.com/techfort/LokiJS).
+ - Realtime filtering - perform filtering and event calling in realtime.
+ - Memory efficient - use iterators and Binary indexes (red black tree) for indexes to perform filtering.
+ - Events - notifies you about load, insert, update, delete, and quit to sync your state with the database.
+ - Indexes = for fast filtering.
+ - Chaining = supports filter chaining.
+
 
 > [!WARNING]
 > Please keep in mind that PixieDb is still in under active development.
@@ -28,7 +36,7 @@ const products = [
 ]
 
 // provide unique key, data and indexes for better performance
-// 3rd param data is optional can be load after using the load method
+// 3rd param data is optional, Can be loaded after using the load method
 const pd = new PixieDb('id', ["price", "category"], products) 
 // or
 const pd = new PixieDb<Product>('id', ["price", "category"]) // pass type if using typescript
@@ -37,7 +45,7 @@ pd.load(products) // to load data later
 const byId = pd.select().eq("id", 2).single()
 console.log(byId); // { id: 2, name: "Banana", price: 10, category: "Fruit" }
 
-// can also pass array of fields to select method to pick only those fields/properties
+// can also pass an array of fields to select method to pick only those fields/properties
 const fruitBelow10 = pd.select(["id", "name", "price"]).eq("category", "Fruit").lte("price", 10).orderBy(["name", ["price", "desc"]]).range(2, 3).data()
 console.log(fruitBelow10); // [{ id: 3, name: "Grapes", price: 6 }, ...]
 
@@ -82,7 +90,7 @@ bun add pixiedb
 ## Docs
 
 ### PixieDb
-This is a class which create an PixieDb instance to use.
+This is a class which creates an PixieDb instance to use.
 
 ```ts
 // pass type/interface if using typescript
@@ -96,7 +104,7 @@ const pd = new PixieDb<Product>('id', ["price", "category"], products)
 
 #### load
 Used to import data without cloning (so don't mutate the data or clone before load).
-Pass true as second parameter to clear the previous data and indexes state. (default: false).
+Pass true as second parameter to clear the previous data and indexes state. (Default: false).
 
 ```ts
 pd.load(products)
@@ -107,7 +115,7 @@ pd.load(products, true)
 
 #### get
 Get single doc/row using key (primary key/unique id).
-Returns doc/row if present else undefined.
+Returns doc/row, if present else undefined.
 
 ```ts
 pd.get(2)
@@ -116,7 +124,7 @@ pd.get(2)
 
 #### select
 Get single doc/row using key (primary key/unique id).
-Returns doc/row if present else undefined.
+Returns doc/row, if present else undefined.
 
 ```ts
 pd.select().eq("category", "Fruit").gte("price", 6).data()
@@ -141,16 +149,16 @@ pd.where().eq("category", "Fruit").between("price", [6, 10]).update({price: 11})
 ```
 
 #### data
-Get all docs/rows ordered respect to primary key/unique id.
-Pass false to get all without clone (don't modify). default: true
+Get all docs/rows ordered respecting to primary key/unique id.
+Pass false to get all without clone (don't modify). Default: true
 ```ts
 pd.data()
 // [{ id: 1, name: "Apple", price: 5, category: "Fruit" }, ...]
 ```
 
 #### count
-Get all docs/rows ordered respect to primary key/unique id.
-Pass false to get all without clone (don't modify). default: true
+Get all docs/rows ordered respecting to primary key/unique id.
+Pass false to get all without clone (don't modify). Default: true
 ```ts
 pd.select().count()
 // 6
@@ -161,7 +169,7 @@ pd.select().eq("category", "Fruit").between("price", [6, 10]).count()
 
 #### close
 to close/quit/terminate the database and remove all data/indexes and fire "Q" ("quit") event.
-Pass true to not emit events. default: false
+Pass true to not emit events. Default: false
 ```ts
 pd.close()
 // or
@@ -192,16 +200,47 @@ JSON.stringify(pd)
  - [X] count of docs with filters
  - [X] update of docs with filters
  - [X] delete of docs with filters
+ - [ ] Plugin support
+ - [ ] Unique indexes (currently override the previous)
  - [X] filters
-     - [X] eq (where value equal)
-     - [X] neq (where value not equal)
-     - [X] in (where value in)
-     - [X] nin (where value not in)
-     - [X] between (where value between to values)
-     - [X] nbetween (where value not between to values)
-     - [X] gt (where value greater than)
-     - [X] gte (where value greater than or equal to)
-     - [X] lt (where value less than)
-     - [X] lte (where value less than or equal to)
+     - [X] eq (equal)
+     - [X] neq (not equal)
+     - [X] in (value in)
+     - [X] nin (value not in)
+     - [X] between - values within a given range (>= and <=). begin and end values are included.
+     - [X] nbetween - values not within a given range (< or >). begin and end values are not included.
+     - [X] gt (greater than)
+     - [X] gte (greater than or equal to)
+     - [X] lt (less than)
+     - [X] lte (less than or equal to)
      - [ ] custom query method
  - [X] range offset (from) and count (limit of docs to return)
+ - [ ] multiple tables
+ - [ ] joins
+ - [ ] changes api
+ - [ ] custom clone method
+ - [ ] custom compare method
+ - [ ] views
+    - [ ] Basic views
+    - [ ] Materialized views (persist)
+ - [ ] plugins
+    - [ ] persist (localStorage, indexedb)
+    - [ ] sync with other databases
+    - [ ] sync with browser tabs
+    - [ ] transaction
+
+
+## Other Details
+### query filters that use binary index (perform operation in log(n))
+ - eq
+ - in
+ - between log(n) + count of docs between
+ - gt log(n) + count of docs
+ - gte log(n) + count of docs
+ - lt log(n) + count of docs
+ - lte log(n) + count of docs
+
+### other query filters 
+ - neq O(n)
+ - nin O(n)
+ - nbetween log(n) + count of docs (where value less than or equal to)
